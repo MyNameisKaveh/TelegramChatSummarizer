@@ -4,8 +4,8 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
 
-# تنظیم مسیر کش (برای Spaces مناسب)
-os.environ["TRANSFORMERS_CACHE"] = "/data/.cache/huggingface"
+# 🚨 مسیر درست و قابل نوشتن برای کش
+os.environ["TRANSFORMERS_CACHE"] = "/data/cache"
 
 MODEL_NAME = "nafisehNik/mt5-persian-summary"
 
@@ -24,13 +24,6 @@ async def startup():
     print("[LOG] Inside async startup...")
     model, tokenizer = get_summarizer_model()
     print("[LOG] Model and tokenizer loaded in startup().")
-
-    # برای تست اولیه بدون ارسال پیام، فقط یک لاگ بذار
-    print("[LOG] Bot is ready.")
-
-    # اگر خواستی پیام بفرسته، این قسمت رو فعال کن
-    # bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
-    # await bot.send_message(chat_id="YOUR_CHAT_ID", text="Bot is ready.")
 
 if __name__ == "__main__":
     print("===== Application Startup =====")
