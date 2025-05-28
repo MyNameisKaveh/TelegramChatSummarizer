@@ -3,7 +3,7 @@ import os
 
 def load_model():
     model_name = "nafisehNik/mt5-persian-summary"
-    cache_dir = "./cache"
+    cache_dir = "/tmp/hf_cache"
 
     os.makedirs(cache_dir, exist_ok=True)
 
