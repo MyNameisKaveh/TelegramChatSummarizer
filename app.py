@@ -7,12 +7,13 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import nltk
 from nltk.tokenize import sent_tokenize
 
-# تنظیم cache directory برای transformers
-os.environ['TRANSFORMERS_CACHE'] = './cache'
-os.environ['HF_HOME'] = './cache'
+# تنظیم cache directory برای transformers - استفاده از /tmp
+cache_dir = '/tmp/transformers_cache'
+os.environ['TRANSFORMERS_CACHE'] = cache_dir
+os.environ['HF_HOME'] = cache_dir
 
 # ایجاد دایرکتوری cache اگر وجود نداره
-os.makedirs('./cache', exist_ok=True)
+os.makedirs(cache_dir, exist_ok=True)
 
 # دانلود nltk data
 try:
@@ -25,29 +26,49 @@ except:
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# متغیرهای مدل
-MODEL_NAME = "csebuetnlp/mT5_multilingual_XLSum"
+# متغیرهای مدل - استفاده از مدل کوچکتر
+MODEL_NAME = "facebook/bart-large-cnn"  # مدل کوچکتر و سریعتر
 model = None
 tokenizer = None
 
 def get_summarizer_model():
     """بارگیری مدل و tokenizer"""
     try:
+        cache_dir = '/tmp/transformers_cache'
         # استفاده از cache directory سفارشی
         model = AutoModelForSeq2SeqLM.from_pretrained(
             MODEL_NAME,
-            cache_dir='./cache',
-            local_files_only=False
+            cache_dir=cache_dir,
+            local_files_only=False,
+            trust_remote_code=True
         )
         tokenizer = AutoTokenizer.from_pretrained(
             MODEL_NAME,
-            cache_dir='./cache',
-            local_files_only=False
+            cache_dir=cache_dir,
+            local_files_only=False,
+            trust_remote_code=True
         )
         return model, tokenizer
     except Exception as e:
         logger.error(f"Error loading model: {e}")
-        return None, None
+        # اگر مدل اصلی کار نکرد، از مدل جایگزین استفاده کن
+        try:
+            logger.info("Trying alternative model...")
+            alt_model_name = "sshleifer/distilbart-cnn-12-6"
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                alt_model_name,
+                cache_dir=cache_dir,
+                local_files_only=False
+            )
+            tokenizer = AutoTokenizer.from_pretrained(
+                alt_model_name,
+                cache_dir=cache_dir,
+                local_files_only=False
+            )
+            return model, tokenizer
+        except Exception as e2:
+            logger.error(f"Error loading alternative model: {e2}")
+            return None, None
 
 def preprocess_text(text):
     """پیش‌پردازش متن"""
