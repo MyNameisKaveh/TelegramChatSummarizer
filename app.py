@@ -8,6 +8,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import re
 import nltk
 from nltk.tokenize import sent_tokenize
+import torch
 
 # تنظیم cache directory
 cache_dir = '/tmp/transformers_cache'
@@ -30,8 +31,8 @@ logger = logging.getLogger(__name__)
 message_storage = {}
 MAX_MESSAGES_PER_CHAT = 1000
 
-# مدل سبک‌تر برای CPU رایگان
-MODEL_NAME = "sshleifer/distilbart-cnn-6-6"  # خیلی سبک‌تر از bart-large
+# مدل فارسی
+MODEL_NAME = "nafisehNik/mt5-persian-summary"
 model = None
 tokenizer = None
 
@@ -75,10 +76,10 @@ class MessageStore:
 # ایجاد نمونه از مخزن پیام‌ها
 message_store = MessageStore()
 
-def load_lightweight_model():
-    """بارگیری مدل سبک"""
+def load_persian_model():
+    """بارگیری مدل فارسی"""
     try:
-        logger.info(f"Loading lightweight model: {MODEL_NAME}")
+        logger.info(f"Loading Persian model: {MODEL_NAME}")
         
         tokenizer = AutoTokenizer.from_pretrained(
             MODEL_NAME,
@@ -89,30 +90,22 @@ def load_lightweight_model():
         model = AutoModelForSeq2SeqLM.from_pretrained(
             MODEL_NAME,
             cache_dir=cache_dir,
-            local_files_only=False
+            local_files_only=False,
+            torch_dtype=torch.float32,
+            low_cpu_mem_usage=True,
         )
         
-        logger.info("Model loaded successfully")
+        model.eval()
+        logger.info("Persian model loaded successfully")
         return model, tokenizer
         
     except Exception as e:
-        logger.error(f"Error loading model: {e}")
-        # مدل فوق سبک جایگزین
-        try:
-            logger.info("Trying ultra-light model...")
-            alt_model = "sshleifer/distilbart-cnn-2-2"
-            
-            tokenizer = AutoTokenizer.from_pretrained(alt_model, cache_dir=cache_dir)
-            model = AutoModelForSeq2SeqLM.from_pretrained(alt_model, cache_dir=cache_dir)
-            
-            return model, tokenizer
-        except Exception as e2:
-            logger.error(f"Failed to load any model: {e2}")
-            return None, None
+        logger.error(f"Error loading Persian model: {e}")
+        return None, None
 
 def preprocess_persian_text(text):
-    """پیش‌پردازش متن فارسی"""
-    # حذف کاراکترهای اضافی
+    """پیش‌پردازش پیشرفته متن فارسی"""
+    # حذف کاراکترهای اضافی و تمیز کردن
     text = re.sub(r'\s+', ' ', text)  # چندین فاصله -> یک فاصله
     text = re.sub(r'\n+', '\n', text)  # چندین خط جدید -> یک خط
     
@@ -120,14 +113,21 @@ def preprocess_persian_text(text):
     text = re.sub(r'\d{2}:\d{2}', '', text)  # زمان
     text = re.sub(r'@\w+', '', text)  # منشن‌ها
     
+    # حذف لینک‌ها
+    text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
+    
+    # حذف ایموجی‌ها
+    text = re.sub(r'[^\w\s\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]', ' ', text)
+    
     return text.strip()
 
-def chunk_text_smart(text, max_length=400):
-    """تقسیم هوشمند متن"""
+def chunk_text_smart(text, max_length=300):
+    """تقسیم هوشمند متن با در نظر گیری زبان فارسی"""
     try:
         sentences = sent_tokenize(text)
     except:
-        sentences = re.split(r'[.!?]+', text)
+        # روش جایگزین برای جمله‌بندی فارسی
+        sentences = re.split(r'[.!?؟۔]+', text)
     
     chunks = []
     current_chunk = ""
@@ -150,7 +150,7 @@ def chunk_text_smart(text, max_length=400):
     return chunks
 
 def summarize_messages(messages_data):
-    """خلاصه‌سازی پیام‌های گروه"""
+    """خلاصه‌سازی پیام‌های گروه با مدل فارسی"""
     global model, tokenizer
     
     if not model or not tokenizer:
@@ -173,30 +173,34 @@ def summarize_messages(messages_data):
             return "❌ متن برای خلاصه‌سازی بسیار کوتاه است"
         
         # تقسیم به بخش‌های کوچک
-        chunks = chunk_text_smart(combined_text, max_length=350)
+        chunks = chunk_text_smart(combined_text, max_length=400)
         summaries = []
         
-        for i, chunk in enumerate(chunks[:3]):  # حداکثر 3 بخش برای جلوگیری از timeout
+        for i, chunk in enumerate(chunks[:2]):  # حداکثر 2 بخش
             try:
                 inputs = tokenizer.encode(
-                    chunk,
+                    f"خلاصه: {chunk}",
                     return_tensors="pt",
-                    max_length=400,
+                    max_length=512,
                     truncation=True
                 )
                 
-                # تنظیمات سبک‌تر برای CPU
                 summary_ids = model.generate(
                     inputs,
-                    max_length=80,  # کوتاه‌تر
-                    min_length=20,
-                    length_penalty=1.5,  # کمتر
-                    num_beams=2,  # کمتر
+                    max_length=100,
+                    min_length=30,
+                    length_penalty=1.2,
+                    num_beams=3,
                     early_stopping=True,
-                    no_repeat_ngram_size=2
+                    no_repeat_ngram_size=3
                 )
                 
                 summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+                
+                # پاک کردن prefix
+                if summary.startswith("خلاصه:"):
+                    summary = summary[5:].strip()
+                
                 summaries.append(summary)
                 
             except Exception as e:
@@ -259,32 +263,38 @@ def parse_summary_request(text):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """شروع ربات"""
-    welcome_msg = """
+    welcome_msg = f"""
 🤖 سلام! من ربات خلاصه‌ساز گروه هستم.
 
 📋 برای استفاده از من:
-- من را با @{} تگ کنید
+- من را با @{context.bot.username} تگ کنید
 - بعد عبارت "خلاصه" یا "خلاصه کن" بنویسید
     
 🔹 مثال‌ها:
-• @{} خلاصه کن
-• @{} خلاصه 100 پیام آخر
-• @{} خلاصه 2 ساعت اخیر
-• @{} خلاصه کن آخرین 50 پیام
+• @{context.bot.username} خلاصه کن
+• @{context.bot.username} خلاصه 100 پیام آخر
+• @{context.bot.username} خلاصه 2 ساعت اخیر
 
 ⚙️ دستورات:
 /help - راهنمای کامل
 /stats - آمار گروه
+/model - اطلاعات مدل فعلی
 
 🔸 توجه: من فقط وقتی تگ شوم کار می‌کنم!
-    """.format(
-        context.bot.username,
-        context.bot.username, 
-        context.bot.username,
-        context.bot.username
-    )
+    """
     
     await update.message.reply_text(welcome_msg)
+
+async def model_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نمایش اطلاعات مدل فعلی"""
+    info_text = f"""
+🤖 اطلاعات مدل فعلی:
+
+📦 نام مدل: {MODEL_NAME}
+🌐 پشتیبانی زبان: ✅ فارسی
+💾 وضعیت: فعال و آماده
+    """
+    await update.message.reply_text(info_text)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """راهنمای کامل"""
@@ -300,15 +310,20 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • @{context.bot.username} خلاصه کن
 • @{context.bot.username} خلاصه 50 پیام
 • @{context.bot.username} خلاصه 3 ساعت اخیر
-• @{context.bot.username} خلاصه کن آخرین 100 تا
 
 ⚡ ویژگی‌ها:
 • پردازش تا 200 پیام
 • بازه زمانی تا 3 روز
-• حفظ نام کاربران در خلاصه
-• آمارگیری از گفتگو
+• پشتیبانی از متن فارسی
+• تطبیق خودکار با بهترین مدل موجود
 
-🔸 نکته: من فقط در گروه‌ها کار می‌کنم و فقط وقتی تگ شوم!
+🔧 دستورات:
+/start - شروع
+/help - راهنما
+/stats - آمار گروه
+/model - اطلاعات مدل
+
+🔸 نکته: من فقط در گروه‌ها و وقتی تگ شوم کار می‌کنم!
     """
     await update.message.reply_text(help_text)
 
@@ -420,12 +435,12 @@ def main():
         logger.error("BOT_TOKEN not found!")
         return
     
-    # بارگیری مدل
-    logger.info("Loading model...")
-    model, tokenizer = load_lightweight_model()
+    # بارگیری مدل فارسی
+    logger.info("Loading Persian model...")
+    model, tokenizer = load_persian_model()
     
     if not model:
-        logger.error("Failed to load model!")
+        logger.error("Failed to load any model!")
         return
     
     # ساخت اپلیکیشن
@@ -435,6 +450,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("stats", stats_command))
+    app.add_handler(CommandHandler("model", model_info))
     
     # Handler برای تمام پیام‌ها (ذخیره + پردازش)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -443,7 +459,7 @@ def main():
     app.add_error_handler(error_handler)
     
     # شروع
-    logger.info("Bot started! Waiting for messages...")
+    logger.info(f"Bot started with Persian model: {MODEL_NAME}")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
