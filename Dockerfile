@@ -1,17 +1,23 @@
-# استفاده از ایمیج پایه پایتون
 FROM python:3.10-slim
 
-# پوشه کاری در کانتینر
 WORKDIR /app
 
-# کپی کردن فایل requirements
-COPY requirements.txt .
+# Create cache directories with proper permissions
+RUN mkdir -p /app/cache /app/nltk_data && \
+    chmod 755 /app/cache /app/nltk_data
 
-# نصب وابستگی‌ها
+# Copy requirements and install dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# کپی کردن کل کد پروژه
+# Copy application code
 COPY . .
 
-# فرمان اجرا (اگر اسکریپت اصلی app.py است)
+# Set environment variables for cache directories
+ENV TRANSFORMERS_CACHE=/app/cache
+ENV HF_HOME=/app/cache
+ENV NLTK_DATA=/app/nltk_data
+
+EXPOSE 7860
+
 CMD ["python", "app.py"]
