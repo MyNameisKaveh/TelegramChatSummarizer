@@ -1,3 +1,5 @@
+import os
+os.environ["TRANSFORMERS_CACHE"] = "./cache"
 import logging
 from telegram.ext import Updater, MessageHandler, Filters
 from bot.handlers import handle_message
