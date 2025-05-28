@@ -5,7 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
 
 # تنظیم مسیر کش (برای Spaces مناسب)
-os.environ["HF_HOME"] = "/tmp"
+os.environ["TRANSFORMERS_CACHE"] = "/data/.cache/huggingface"
 
 MODEL_NAME = "nafisehNik/mt5-persian-summary"
 
