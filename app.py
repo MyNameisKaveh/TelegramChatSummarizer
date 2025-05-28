@@ -1,45 +1,44 @@
 import os
+import asyncio
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from apscheduler.schedulers.background import BackgroundScheduler
+from telegram import Bot
+
+# تنظیم مسیر کش (برای Spaces مناسب)
 os.environ["HF_HOME"] = "/tmp"
-import logging
-from telegram.ext import Updater, MessageHandler, Filters
-from bot.handlers import handle_message
-from bot.fetcher import save_message
-import os
-from datetime import datetime
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+MODEL_NAME = "nafisehNik/mt5-persian-summary"
 
-logger = logging.getLogger(__name__)
+def get_summarizer_model():
+    print("[LOG] Loading model from:", MODEL_NAME)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+    print("[LOG] Model loaded.")
+    
+    print("[LOG] Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    print("[LOG] Tokenizer loaded.")
+    
+    return model, tokenizer
 
-TOKEN = os.environ.get("BOT_TOKEN")
+async def startup():
+    print("[LOG] Inside async startup...")
+    model, tokenizer = get_summarizer_model()
+    print("[LOG] Model and tokenizer loaded in startup().")
 
-def save_incoming_message(update, context):
-    chat_id = update.effective_chat.id
-    message = update.message.text
-    timestamp = datetime.fromtimestamp(update.message.date.timestamp())
+    # برای تست اولیه بدون ارسال پیام، فقط یک لاگ بذار
+    print("[LOG] Bot is ready.")
 
-    if message:
-        save_message(chat_id, message, timestamp)
+    # اگر خواستی پیام بفرسته، این قسمت رو فعال کن
+    # bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
+    # await bot.send_message(chat_id="YOUR_CHAT_ID", text="Bot is ready.")
 
-def main():
-    if not TOKEN:
-        logger.error("توکن ربات تنظیم نشده. متغیر محیطی BOT_TOKEN را تنظیم کن.")
-        return
+if __name__ == "__main__":
+    print("===== Application Startup =====")
+    scheduler = BackgroundScheduler()
+    scheduler.start()
+    print("[LOG] Scheduler started.")
 
-    updater = Updater(token=TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    # ذخیره‌سازی هر پیام متنی که میاد
-    dp.add_handler(MessageHandler(Filters.text & (~Filters.command), save_incoming_message), group=0)
-
-    # هندل پیام‌های فرمان خلاصه
-    dp.add_handler(MessageHandler(Filters.text & (~Filters.command), handle_message), group=1)
-
-    updater.start_polling()
-    updater.idle()
-
-if __name__ == '__main__':
-    main()
+    loop = asyncio.get_event_loop()
+    print("[LOG] Running startup coroutine...")
+    loop.run_until_complete(startup())
+    print("[LOG] Startup complete.")
