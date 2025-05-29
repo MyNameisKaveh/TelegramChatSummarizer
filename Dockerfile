@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Create cache directories with proper permissions
 RUN mkdir -p /app/cache /app/nltk_data && \
-    chmod 755 /app/cache /app/nltk_data
+    chmod 777 /app/cache /app/nltk_data
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
