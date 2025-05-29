@@ -11,10 +11,10 @@ from nltk.tokenize import sent_tokenize
 import torch
 
 # تنظیم مسیر cache برای Transformers
-cache_dir = '/tmp/transformers_cache'
-os.environ['TRANSFORMERS_CACHE'] = cache_dir
-os.environ['HF_HOME'] = cache_dir
-os.makedirs(cache_dir, exist_ok=True)
+#cache_dir = '/tmp/transformers_cache'
+#os.environ['TRANSFORMERS_CACHE'] = cache_dir
+#os.environ['HF_HOME'] = cache_dir
+#os.makedirs(cache_dir, exist_ok=True)
 
 # تنظیم مسیر nltk
 try:
@@ -73,10 +73,9 @@ def load_persian_model():
     global model, tokenizer
     try:
         logger.info(f"Loading Persian model: {MODEL_NAME}")
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, cache_dir=cache_dir)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         model = AutoModelForSeq2SeqLM.from_pretrained(
             MODEL_NAME,
-            cache_dir=cache_dir,
             torch_dtype=torch.float32
         )
         model.eval()
